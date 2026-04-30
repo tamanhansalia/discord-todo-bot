@@ -3,14 +3,30 @@ from discord.ext import commands
 import json
 import os
 import time
-from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
-# Load environment variables from .env file
-load_dotenv()
+# ========== KEEP-ALIVE WEB SERVER (Prevents Render from sleeping) ==========
+app = Flask('')
 
-# Setup intents
+@app.route('/')
+def home():
+    return '<h1>2PixelBlogs Discord Bot is running!</h1>'
+
+@app.route('/health')
+def health():
+    return 'OK'
+
+def run_web():
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+def keep_alive():
+    server = Thread(target=run_web)
+    server.start()
+
+# ========== DISCORD BOT CODE ==========
 intents = discord.Intents.default()
-intents.message_content = True  # REQUIRED - Enable in Discord Developer Portal
+intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 TODO_FILE = 'todos.json'
@@ -69,14 +85,12 @@ async def todo(ctx, *, args=None):
         await ctx.send(embed=embed)
         return
     
-    # Parse command
     parts = args.split()
     if not parts:
         return
     
     command = parts[0].lower()
     
-    # !todo add <task> - Add task for yourself
     if command == 'add':
         task = ' '.join(parts[1:])
         if not task:
@@ -99,30 +113,26 @@ async def todo(ctx, *, args=None):
         save_todos(todos)
         await ctx.send(f"✅ Task added for yourself: **{task}** (ID: {new_id})")
     
-    # !todo addto @user <task> - Assign task to another user
     elif command == 'addto':
         if len(parts) < 3:
             await ctx.send("❌ Usage: `!todo addto @user <task>`")
             return
         
-        # Extract mentioned user
         mentioned_user = None
         for user in ctx.message.mentions:
             mentioned_user = user
             break
         
         if not mentioned_user:
-            await ctx.send("❌ Please mention a user to assign the task to. Example: `!todo addto @john Fix the bug`")
+            await ctx.send("❌ Please mention a user to assign the task to.")
             return
         
-        # Get task description (everything after the mention)
         task_parts = parts[1:]
-        # Remove the mention from task_parts
         task_parts = [p for p in task_parts if not p.startswith('<@')]
         task = ' '.join(task_parts)
         
         if not task:
-            await ctx.send("❌ Please specify a task. Example: `!todo addto @john Review the code`")
+            await ctx.send("❌ Please specify a task.")
             return
         
         todos = load_todos()
@@ -145,7 +155,6 @@ async def todo(ctx, *, args=None):
         })
         save_todos(todos)
         
-        # Also add to assigner's record for tracking
         user_id = str(ctx.author.id)
         if user_id not in todos:
             todos[user_id] = []
@@ -164,9 +173,8 @@ async def todo(ctx, *, args=None):
         try:
             await mentioned_user.send(f"📌 You've been assigned a task by {ctx.author.name}: **{task}**\nUse `!todo assigned` to see all your assigned tasks.")
         except:
-            pass  # User might have DMs disabled
+            pass
     
-    # !todo assigned - Show tasks assigned to you
     elif command == 'assigned':
         todos = load_todos()
         user_id = str(ctx.author.id)
@@ -193,39 +201,6 @@ async def todo(ctx, *, args=None):
         
         await ctx.send(embed=embed)
     
-    # !todo assignedby - Show tasks you assigned
-    elif command == 'assignedby':
-        todos = load_todos()
-        assigned_tasks = []
-        
-        for user_id, tasks in todos.items():
-            for task in tasks:
-                if task.get('assigned_by') == ctx.author.id and task.get('assigned_to'):
-                    assigned_tasks.append({
-                        "id": task['id'],
-                        "text": task['text'],
-                        "assigned_to": task['assigned_to'],
-                        "completed": task.get('completed', False),
-                        "status": task.get('status', 'assigned')
-                    })
-        
-        if not assigned_tasks:
-            await ctx.send("📭 You haven't assigned any tasks to others yet.")
-            return
-        
-        embed = discord.Embed(title="📋 Tasks You've Assigned", color=0x00AE86)
-        
-        for task in assigned_tasks:
-            status_emoji = "✅" if task['completed'] else "⏳"
-            embed.add_field(
-                name=f"{status_emoji} Task ID: {task['id']}",
-                value=f"To: <@{task['assigned_to']}>\nTask: {task['text']}",
-                inline=False
-            )
-        
-        await ctx.send(embed=embed)
-    
-    # !todo list - Show personal tasks
     elif command == 'list':
         todos = load_todos()
         user_id = str(ctx.author.id)
@@ -241,15 +216,14 @@ async def todo(ctx, *, args=None):
         embed = discord.Embed(title="📋 Your Personal To-Do List", description=desc, color=0x00AE86)
         await ctx.send(embed=embed)
     
-    # !todo check <id> - Mark personal task done
     elif command == 'check':
         if len(parts) < 2:
-            await ctx.send("❌ Please provide a task ID. Example: `!todo check 1234567890`")
+            await ctx.send("❌ Please provide a task ID.")
             return
         try:
             task_id = int(parts[1])
         except ValueError:
-            await ctx.send("❌ Invalid task ID. Please use a number.")
+            await ctx.send("❌ Invalid task ID.")
             return
         
         todos = load_todos()
@@ -264,125 +238,16 @@ async def todo(ctx, *, args=None):
                 save_todos(todos)
                 await ctx.send(f"🎉 Completed: **{t['text']}**")
                 return
-        await ctx.send("❌ Task not found. Use `!todo list` to see your personal task IDs.")
-    
-    # !todo complete <id> - Mark assigned task done
-    elif command == 'complete':
-        if len(parts) < 2:
-            await ctx.send("❌ Please provide a task ID. Example: `!todo complete 1234567890`")
-            return
-        try:
-            task_id = int(parts[1])
-        except ValueError:
-            await ctx.send("❌ Invalid task ID. Please use a number.")
-            return
-        
-        todos = load_todos()
-        user_id = str(ctx.author.id)
-        tasks = todos.get(user_id, [])
-        
-        for t in tasks:
-            if t["id"] == task_id and t.get('assigned_by'):
-                if t.get("completed"):
-                    await ctx.send("✅ Task already marked as completed.")
-                    return
-                
-                t["completed"] = True
-                t["status"] = "completed"
-                save_todos(todos)
-                
-                assigner_id = str(t.get('assigned_by'))
-                await ctx.send(f"🎉 Task marked as completed: **{t['text']}**\nThe assigner has been notified.")
-                
-                try:
-                    assigner = await bot.fetch_user(int(assigner_id))
-                    if assigner:
-                        await assigner.send(f"📢 {ctx.author.name} has completed the task you assigned: **{t['text']}**\nUse `!todo review {task_id}` to review and approve.")
-                except:
-                    pass
-                return
-        
-        await ctx.send("❌ Task not found or it's not a task assigned to you.")
-    
-    # !todo review <id> - Review completed task
-    elif command == 'review':
-        if len(parts) < 2:
-            await ctx.send("❌ Please provide a task ID. Example: `!todo review 1234567890`")
-            return
-        try:
-            task_id = int(parts[1])
-        except ValueError:
-            await ctx.send("❌ Invalid task ID. Please use a number.")
-            return
-        
-        todos = load_todos()
-        
-        found_task = None
-        found_user_id = None
-        
-        for user_id, tasks in todos.items():
-            for task in tasks:
-                if task["id"] == task_id and task.get('assigned_by') == ctx.author.id:
-                    found_task = task
-                    found_user_id = user_id
-                    break
-            if found_task:
-                break
-        
-        if not found_task:
-            await ctx.send("❌ Task not found or you didn't assign this task.")
-            return
-        
-        if not found_task.get("completed"):
-            await ctx.send("⚠️ This task hasn't been marked as completed yet.")
-            return
-        
-        found_task["status"] = "approved"
-        save_todos(todos)
-        
-        await ctx.send(f"✅ Task approved and closed: **{found_task['text']}**")
-        
-        try:
-            assignee = await bot.fetch_user(int(found_user_id))
-            if assignee:
-                await assignee.send(f"🎉 {ctx.author.name} has approved your completed task: **{found_task['text']}**")
-        except:
-            pass
-    
-    # !todo undo <id>
-    elif command == 'undo':
-        if len(parts) < 2:
-            await ctx.send("❌ Please provide a task ID. Example: `!todo undo 1234567890`")
-            return
-        try:
-            task_id = int(parts[1])
-        except ValueError:
-            await ctx.send("❌ Invalid task ID. Please use a number.")
-            return
-        
-        todos = load_todos()
-        user_id = str(ctx.author.id)
-        tasks = todos.get(user_id, [])
-        for t in tasks:
-            if t["id"] == task_id:
-                if not t["completed"]:
-                    await ctx.send("⚠️ Task is not completed yet.")
-                    return
-                t["completed"] = False
-                save_todos(todos)
-                await ctx.send(f"↩️ Unchecked: **{t['text']}**")
-                return
         await ctx.send("❌ Task not found.")
     
-    # !todo delete <id>
     elif command == 'delete':
         if len(parts) < 2:
-            await ctx.send("❌ Please provide a task ID. Example: `!todo delete 1234567890`")
+            await ctx.send("❌ Please provide a task ID.")
             return
         try:
             task_id = int(parts[1])
         except ValueError:
-            await ctx.send("❌ Invalid task ID. Please use a number.")
+            await ctx.send("❌ Invalid task ID.")
             return
         
         todos = load_todos()
@@ -396,7 +261,6 @@ async def todo(ctx, *, args=None):
                 return
         await ctx.send("❌ Task not found.")
     
-    # !todo clear
     elif command == 'clear':
         todos = load_todos()
         user_id = str(ctx.author.id)
@@ -407,12 +271,13 @@ async def todo(ctx, *, args=None):
     else:
         await ctx.send(f"❌ Unknown command: {command}. Try `!todo help`")
 
-# Run the bot
+# ========== START THE BOT WITH KEEP-ALIVE ==========
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
     if not token:
-        print("❌ Error: DISCORD_TOKEN not found in .env file")
-        print("Please create a .env file with: DISCORD_TOKEN=your_actual_bot_token")
+        print("❌ Error: DISCORD_TOKEN environment variable not set")
+        print("Please add DISCORD_TOKEN in Render dashboard")
     else:
         print("✅ Token found, starting bot...")
+        keep_alive()  # Starts the web server to keep bot alive
         bot.run(token)
