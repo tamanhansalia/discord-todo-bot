@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: 2pixelblogs-discord-bot
+    runtime: python
+    repo: https://github.com/tamanhansalia/discord-todo-bot
+    plan: free
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
