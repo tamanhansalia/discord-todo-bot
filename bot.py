@@ -5,6 +5,10 @@ import os
 import time
 from flask import Flask
 from threading import Thread
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ========== KEEP-ALIVE WEB SERVER ==========
 app = Flask('')
@@ -302,10 +306,20 @@ async def todo(ctx, *, args=None):
 
 # ========== START THE BOT ==========
 if __name__ == "__main__":
+    # First try to get from environment variable
     token = os.getenv("DISCORD_TOKEN")
+    
+    # If not found, try to read from .env file directly
+    if not token and os.path.exists('.env'):
+        with open('.env', 'r') as f:
+            for line in f:
+                if line.startswith('DISCORD_TOKEN='):
+                    token = line.split('=')[1].strip()
+                    break
+    
     if not token:
         print("❌ Error: DISCORD_TOKEN environment variable not set")
-        print("Please add DISCORD_TOKEN in Render dashboard or Railway variables")
+        print("Please create a .env file with: DISCORD_TOKEN=your_token_here")
     else:
         print("✅ Token found, starting bot...")
         keep_alive()

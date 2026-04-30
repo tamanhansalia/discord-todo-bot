@@ -6,6 +6,8 @@ services:
     plan: free
     envVars:
       - key: DISCORD_TOKEN
-        sync: false
+        value: MTQ5OTMxODQ1NjIyOTgyMjUyNQ.Gy-TGp.hIxio04F9vTnMIcK0WZMEqu-h-wuvyQv0yZtO0
+      - key: PYTHON_VERSION
+        value: 3.11.11
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py

@@ -24,6 +24,15 @@
       "assigned_to_name": "_taman",
       "status": "approved",
       "assigned_date": 1777542655.6052384
+    },
+    {
+      "id": 1777553334335,
+      "text": "[ASSIGNED TO genx_20] Fuck u",
+      "completed": true,
+      "assigned_by": 553257635558981653,
+      "assigned_to": 544844281777618957,
+      "status": "completed",
+      "task_type": "assigned"
     }
   ],
   "544844281777618957": [
@@ -51,6 +60,17 @@
       "assigned_to": 553257635558981653,
       "status": "assigned",
       "task_type": "assigned"
+    },
+    {
+      "id": 1777553334335,
+      "text": "Fuck u",
+      "completed": true,
+      "assigned_by": 553257635558981653,
+      "assigned_by_name": "_taman",
+      "assigned_to": 544844281777618957,
+      "assigned_to_name": "genx_20",
+      "status": "completed",
+      "assigned_date": 1777553334.3353388
     }
   ]
 }
