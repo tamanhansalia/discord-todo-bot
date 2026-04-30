@@ -6,7 +6,7 @@ import time
 from flask import Flask
 from threading import Thread
 
-# ========== KEEP-ALIVE WEB SERVER (Prevents Render from sleeping) ==========
+# ========== KEEP-ALIVE WEB SERVER ==========
 app = Flask('')
 
 @app.route('/')
@@ -240,6 +240,35 @@ async def todo(ctx, *, args=None):
                 return
         await ctx.send("❌ Task not found.")
     
+    elif command == 'complete':
+        if len(parts) < 2:
+            await ctx.send("❌ Please provide a task ID.")
+            return
+        try:
+            task_id = int(parts[1])
+        except ValueError:
+            await ctx.send("❌ Invalid task ID.")
+            return
+        
+        todos = load_todos()
+        user_id = str(ctx.author.id)
+        tasks = todos.get(user_id, [])
+        
+        for t in tasks:
+            if t["id"] == task_id and t.get('assigned_by'):
+                if t.get("completed"):
+                    await ctx.send("✅ Task already marked as completed.")
+                    return
+                
+                t["completed"] = True
+                t["status"] = "completed"
+                save_todos(todos)
+                
+                await ctx.send(f"🎉 Task marked as completed: **{t['text']}**")
+                return
+        
+        await ctx.send("❌ Task not found or it's not a task assigned to you.")
+    
     elif command == 'delete':
         if len(parts) < 2:
             await ctx.send("❌ Please provide a task ID.")
@@ -271,13 +300,13 @@ async def todo(ctx, *, args=None):
     else:
         await ctx.send(f"❌ Unknown command: {command}. Try `!todo help`")
 
-# ========== START THE BOT WITH KEEP-ALIVE ==========
+# ========== START THE BOT ==========
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         print("❌ Error: DISCORD_TOKEN environment variable not set")
-        print("Please add DISCORD_TOKEN in Render dashboard")
+        print("Please add DISCORD_TOKEN in Render dashboard or Railway variables")
     else:
         print("✅ Token found, starting bot...")
-        keep_alive()  # Starts the web server to keep bot alive
+        keep_alive()
         bot.run(token)
